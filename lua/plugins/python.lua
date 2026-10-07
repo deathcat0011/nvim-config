@@ -1,3 +1,33 @@
+local function debug_current_buffer(with_args)
+  local filetype = vim.bo.filetype
+
+  if filetype == "rust" then
+    if vim.fn.exists(":RustLsp") == 2 then
+      vim.cmd("RustLsp debuggables")
+    else
+      vim.notify("Rust debugging is still loading; try again in a moment", vim.log.levels.WARN)
+    end
+    return
+  end
+
+  local configurations = require("dap").configurations[filetype] or {}
+  local preferred_name = with_args and "Debug current file (with args)" or "Debug current file"
+
+  for _, configuration in ipairs(configurations) do
+    if configuration.name == preferred_name then
+      require("dap").run(configuration)
+      return
+    end
+  end
+
+  if not with_args and #configurations == 1 then
+    require("dap").run(configurations[1])
+    return
+  end
+
+  vim.notify(("No debug configuration for %s"):format(filetype == "" and "this buffer" or filetype), vim.log.levels.WARN)
+end
+
 return {
   {
     "mason-org/mason.nvim",
@@ -157,9 +187,14 @@ return {
       {
         "<leader>dc",
         function()
-          require("dap").continue()
+          local dap = require("dap")
+          if dap.session() then
+            dap.continue()
+          else
+            debug_current_buffer()
+          end
         end,
-        desc = "Debug Continue/Run",
+        desc = "Debug Continue / Run Current Buffer",
       },
       {
         "<leader>dp",
@@ -220,28 +255,16 @@ return {
       {
         "<leader>df",
         function()
-          for _, cfg in ipairs(require("dap").configurations.python or {}) do
-            if cfg.name == "Debug current file" then
-              require("dap").run(cfg)
-              return
-            end
-          end
-          vim.notify("Python debug configuration not found: Debug current file", vim.log.levels.ERROR)
+          debug_current_buffer()
         end,
-        desc = "Debug Python File",
+        desc = "Debug Current Buffer",
       },
       {
         "<leader>dF",
         function()
-          for _, cfg in ipairs(require("dap").configurations.python or {}) do
-            if cfg.name == "Debug current file (with args)" then
-              require("dap").run(cfg)
-              return
-            end
-          end
-          vim.notify("Python debug configuration not found: Debug current file (with args)", vim.log.levels.ERROR)
+          debug_current_buffer(true)
         end,
-        desc = "Debug Python File (Args)",
+        desc = "Debug Current Buffer (Args)",
       },
       {
         "<leader>dP",
