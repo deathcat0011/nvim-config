@@ -45,9 +45,8 @@ Describe what you expected to happen.
 ## Relevant plugin / component
 If you suspect a particular plugin or feature from this config, note it here. Examples in this repo include:
 - mcphub.nvim (mcp-hub integration)
-- avante.nvim (AI assistant integration)
 - copilot.lua (GitHub Copilot integration)
-- blink.cmp / blink-cmp-avante (completion)
+- CopilotChat.nvim
 - img-clip.nvim / render-markdown.nvim
 
 
