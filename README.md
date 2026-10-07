@@ -28,21 +28,18 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 - Main entry: `init.lua` -> `require("config.lazy")` which bootstraps lazy.nvim and loads the `plugins` and `lazyvim.plugins` specs.
 - Notable custom plugins configured in `lua/plugins/*.lua`:
   - mcphub.nvim (ravitemer/mcphub.nvim)
-  - avante.nvim (yetone/avante.nvim) + providers and integrations
   - copilot.lua (zbirenbaum/copilot.lua)
-  - blink.cmp (saghen/blink.cmp) with `blink-cmp-avante` provider
-  - render-markdown.nvim, img-clip, and other helper integrations
+  - CopilotChat.nvim (CopilotC-Nvim/CopilotChat.nvim)
 - Minimal local options: `relativenumber = false`, `swapfile = false` (see `lua/config/options.lua`).
 - Some plugins are intentionally disabled in `lua/plugins/disabled.lua` (e.g. bufferline).
 
 
 ## Prerequisites
 
-- Neovim (recommended 0.9+)
+- Neovim 0.10+ (recommended by current LazyVim/Copilot ecosystem)
 - Git (required to clone lazy.nvim/plugins)
-- Node.js (for some plugins and for `copilot.lua`) — ensure `node` is on your PATH
-- npm (to install global helper `mcp-hub` used by mcphub.nvim)
-- Optional: make (for building some plugins on non-Windows systems)
+- Node.js (required by `copilot.lua`) — ensure `node` is on your PATH
+- npm (optional; required to install the global `mcp-hub` helper)
 
 
 ## Installation (copy / clone config)
@@ -72,26 +69,21 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 
 - mcphub.nvim (ravitemer/mcphub.nvim)
   - This config includes `mcphub.nvim` and its dependency on `plenary`.
+  - MCP Hub is independent from Copilot/CopilotChat and can be used separately.
   - The plugin `build` field requests: `npm install -g mcp-hub@latest`.
   - If the automatic build fails or you prefer manual install, run:
     npm install -g mcp-hub@latest
 
-- avante.nvim (yetone/avante.nvim)
-  - This plugin is configured to use a provider (`copilot`) in `lua/plugins/ai.lua` and references an `AGENTS.md` file via `instructions_file`.
-  - It depends on a number of helper plugins (telescope, plenary, hrsh7th/nvim-cmp, etc.).
-  - Build step: on non-Windows systems `make` is invoked; on Windows a PowerShell script is configured. If the build fails, ensure `make` or PowerShell is available, or follow the plugin's upstream README for manual build steps.
-  - The config uses a `system_prompt` function that consults `mcphub` for active servers. If you do not run mcphub or you haven't configured any agents, the prompt will be empty.
-  - Note: `AGENTS.md` is referenced in the config. This file is not present by default in the project root — create it if you want to store or document local agents/tools for avante.
-
 - copilot.lua (zbirenbaum/copilot.lua)
   - Configured to trigger on `InsertEnter` with `node` as the command. Make sure `node` is installed and available in your PATH.
+  - Run `:Copilot auth` once, then restart Neovim.
   - Keymaps for Copilot suggestions are set in the plugin config (e.g. accept uses `<M-l>` by default in this config).
 
-- blink.cmp + blink-cmp-avante
-  - Completion backend with a custom provider entry for Avante.
+- CopilotChat.nvim
+  - Exposes chat commands such as `:CopilotChatToggle`, `:CopilotChatReset`, and `:CopilotChatModels`.
 
-- img-clip.nvim and render-markdown.nvim
-  - Useful for inline images and rendering markdown; check their upstream docs for system-specific dependencies.
+- render-markdown.nvim
+  - Used for in-editor Markdown rendering and display polish. Check upstream docs for parser and font requirements.
 
 
 ## Configuration highlights
@@ -122,16 +114,9 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 - If `mcp-hub` installation fails during plugin build:
   - Install manually: `npm install -g mcp-hub@latest` (requires npm + sufficient permissions)
 
-- If a plugin build that relies on `make` fails on Windows, ensure you either run the PowerShell build or install a compatible build tool (e.g. via MSYS2, WSL).
-
-- If Copilot or Avante features do not work:
+- If Copilot features do not work:
   - Ensure `node` is installed and accessible.
   - Ensure any provider-specific credentials or endpoints are configured correctly in `lua/plugins/ai.lua`.
-
-
-## Contributing / adding agents
-
-- `lua/plugins/ai.lua` references `AGENTS.md` as `instructions_file` for avante. Create an `AGENTS.md` in the project root if you want to add local agent/tool instructions that Avante/other tools can reference.
 
 
 ## Credits
@@ -147,7 +132,6 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 ---
 
 If you want, I can also:
-- Add a minimal `AGENTS.md` template referenced by avante (the plugin currently points to that file but it is not present).
 - Add more documentation about keymaps or customize options.
 
 
