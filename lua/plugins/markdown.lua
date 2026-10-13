@@ -220,12 +220,179 @@ local function include_heading_line(include, from_label, opts)
   return "> [!include] Included from " .. from_label .. suffix
 end
 
+local function split_text_lines(text)
+  local normalized = text:gsub("\r\n", "\n"):gsub("\r", "\n")
+  local lines = vim.split(normalized, "\n", { plain = true })
+  if #lines > 0 and lines[#lines] == "" then
+    table.remove(lines, #lines)
+  end
+  return lines
+end
+
+local function try_iconv_to_utf8(text, from_encoding)
+  local ok, converted = pcall(vim.fn.iconv, text, from_encoding, "utf-8")
+  if ok and type(converted) == "string" then
+    return converted
+  end
+  return nil
+end
+
+local function codepoint_to_utf8(codepoint)
+  if codepoint <= 0x7F then
+    return string.char(codepoint)
+  end
+
+  if codepoint <= 0x7FF then
+    local b1 = 0xC0 + math.floor(codepoint / 0x40)
+    local b2 = 0x80 + (codepoint % 0x40)
+    return string.char(b1, b2)
+  end
+
+  if codepoint <= 0xFFFF then
+    local b1 = 0xE0 + math.floor(codepoint / 0x1000)
+    local b2 = 0x80 + (math.floor(codepoint / 0x40) % 0x40)
+    local b3 = 0x80 + (codepoint % 0x40)
+    return string.char(b1, b2, b3)
+  end
+
+  if codepoint <= 0x10FFFF then
+    local b1 = 0xF0 + math.floor(codepoint / 0x40000)
+    local b2 = 0x80 + (math.floor(codepoint / 0x1000) % 0x40)
+    local b3 = 0x80 + (math.floor(codepoint / 0x40) % 0x40)
+    local b4 = 0x80 + (codepoint % 0x40)
+    return string.char(b1, b2, b3, b4)
+  end
+
+  return "\239\191\189"
+end
+
+local function decode_utf16_bytes(blob, little_endian)
+  local out = {}
+  local i = 1
+  local n = #blob
+
+  while i + 1 <= n do
+    local b1, b2 = blob:byte(i, i + 1)
+    local unit
+    if little_endian then
+      unit = b1 + b2 * 256
+    else
+      unit = b2 + b1 * 256
+    end
+
+    if unit == 0 then
+      i = i + 2
+    elseif unit >= 0xD800 and unit <= 0xDBFF and i + 3 <= n then
+      local c1, c2 = blob:byte(i + 2, i + 3)
+      local next_unit
+      if little_endian then
+        next_unit = c1 + c2 * 256
+      else
+        next_unit = c2 + c1 * 256
+      end
+
+      if next_unit >= 0xDC00 and next_unit <= 0xDFFF then
+        local codepoint = 0x10000 + (unit - 0xD800) * 0x400 + (next_unit - 0xDC00)
+        out[#out + 1] = codepoint_to_utf8(codepoint)
+        i = i + 4
+      else
+        out[#out + 1] = codepoint_to_utf8(0xFFFD)
+        i = i + 2
+      end
+    else
+      out[#out + 1] = codepoint_to_utf8(unit)
+      i = i + 2
+    end
+  end
+
+  return table.concat(out)
+end
+
+local function guess_utf16_endianness(blob)
+  local odd_null = 0
+  local even_null = 0
+  for i = 1, #blob do
+    if blob:byte(i) == 0 then
+      if i % 2 == 0 then
+        even_null = even_null + 1
+      else
+        odd_null = odd_null + 1
+      end
+    end
+  end
+
+  if even_null > odd_null then
+    return true
+  end
+  if odd_null > even_null then
+    return false
+  end
+  return nil
+end
+
+local function decode_text_blob(blob)
+  if blob == "" then
+    return ""
+  end
+
+  local b1, b2, b3 = blob:byte(1, 3)
+  if b1 == 0xEF and b2 == 0xBB and b3 == 0xBF then
+    return blob:sub(4)
+  end
+
+  if b1 == 0xFF and b2 == 0xFE then
+    local body = blob:sub(3)
+    return try_iconv_to_utf8(body, "utf-16le") or decode_utf16_bytes(body, true)
+  end
+
+  if b1 == 0xFE and b2 == 0xFF then
+    local body = blob:sub(3)
+    return try_iconv_to_utf8(body, "utf-16be") or decode_utf16_bytes(body, false)
+  end
+
+  local null_count = select(2, blob:gsub("\0", ""))
+  if null_count > 0 then
+    local decoded = try_iconv_to_utf8(blob, "utf-16le") or try_iconv_to_utf8(blob, "utf-16be")
+    if decoded then
+      return decoded
+    end
+
+    local endian = guess_utf16_endianness(blob)
+    if endian ~= nil then
+      return decode_utf16_bytes(blob, endian)
+    end
+    return blob:gsub("\0", "")
+  end
+
+  return blob
+end
+
 local function safe_read_file_lines(path)
+  local ok_open, file = pcall(io.open, path, "rb")
+  if ok_open and file then
+    local ok_read, blob = pcall(function()
+      return file:read("*a")
+    end)
+    file:close()
+
+    if ok_read and type(blob) == "string" then
+      local decoded = decode_text_blob(blob)
+      return split_text_lines(decoded)
+    end
+  end
+
   local ok, lines = pcall(vim.fn.readfile, path)
   if not ok then
     return nil
   end
-  return lines
+
+  local out = {}
+  for _, line in ipairs(lines) do
+    local text = tostring(line or "")
+    text = text:gsub("\0", ""):gsub("\r", "")
+    table.insert(out, text)
+  end
+  return out
 end
 
 local function expand_markdown_file(file_path, depth, stack, opts)
@@ -303,6 +470,23 @@ local function find_preview_buffer_for_source(source_path)
   return nil
 end
 
+local function sanitize_buffer_lines(lines)
+  local out = {}
+  for _, line in ipairs(lines or {}) do
+    local text = tostring(line or "")
+    text = text:gsub("\0", "")
+    text = text:gsub("\r\n", "\n"):gsub("\r", "")
+    if text:find("\n", 1, true) then
+      for _, part in ipairs(vim.split(text, "\n", { plain = true })) do
+        table.insert(out, part)
+      end
+    else
+      table.insert(out, text)
+    end
+  end
+  return out
+end
+
 local function render_into_preview_buffer(preview_buf, source_path, expanded)
   vim.bo[preview_buf].buftype = "nofile"
   vim.bo[preview_buf].bufhidden = "wipe"
@@ -310,7 +494,8 @@ local function render_into_preview_buffer(preview_buf, source_path, expanded)
   vim.bo[preview_buf].modifiable = true
   vim.bo[preview_buf].readonly = false
 
-  vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, expanded)
+  local safe_expanded = sanitize_buffer_lines(expanded)
+  vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, safe_expanded)
 
   local preview_name = "[Include Preview] " .. vim.fn.fnamemodify(source_path, ":t")
   pcall(vim.api.nvim_buf_set_name, preview_buf, preview_name)
