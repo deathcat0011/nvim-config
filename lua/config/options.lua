@@ -5,6 +5,27 @@ vim.opt.relativenumber = false
 vim.opt.swapfile = false
 vim.opt.undofile = true
 
+local nushell = vim.fn.exepath("nu")
+if nushell == "" and vim.fn.has("win32") == 1 then
+	local local_app_data = vim.env.LOCALAPPDATA
+	local installed_nushell = local_app_data and (local_app_data .. "\\Programs\\nu\\bin\\nu.exe") or nil
+	if installed_nushell and vim.fn.executable(installed_nushell) == 1 then
+		nushell = installed_nushell
+	end
+end
+
+if nushell ~= "" then
+	vim.opt.shell = nushell
+	vim.opt.shellcmdflag = "--stdin --no-newline -c"
+	vim.opt.shellredir = "out+err> %s"
+	vim.opt.shellpipe =
+		"| complete | update stderr { ansi strip } | tee { get stderr | save --force --raw %s } | into record"
+	vim.opt.shellquote = ""
+	vim.opt.shellxescape = ""
+	vim.opt.shellxquote = ""
+	vim.opt.shelltemp = false
+end
+
 local undodir = vim.fn.stdpath("state") .. "/undo"
 if vim.fn.isdirectory(undodir) == 0 then
 	vim.fn.mkdir(undodir, "p")

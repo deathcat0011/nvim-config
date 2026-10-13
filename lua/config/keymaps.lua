@@ -412,11 +412,9 @@ vim.keymap.set("i", "<C-Tab>", function()
 	indent_line()
 end, { desc = "Indent Line" })
 
-for _, lhs in ipairs({ "<C-S-Tab>", "<C-ISO_Left_Tab>", "<C-kB>" }) do
-	vim.keymap.set("i", lhs, function()
-		unindent_line()
-	end, { desc = "Unindent Line" })
-end
+vim.keymap.set("i", "<S-Tab>", function()
+	unindent_line()
+end, { desc = "Unindent Line" })
 
 if vim.g.neovide then
 	local neovide_scale_file = vim.fn.stdpath("state") .. "/neovide_scale.txt"
