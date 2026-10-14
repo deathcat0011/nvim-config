@@ -82,6 +82,12 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 - CopilotChat.nvim
   - Exposes chat commands such as `:CopilotChatToggle`, `:CopilotChatReset`, and `:CopilotChatModels`.
 
+- codex.nvim
+  - `<leader>ax` focuses or hides the Codex panel; `<leader>ar` resumes a session.
+  - Uses the active file's Git project root, falling back to its directory or Neovim's working directory.
+  - On Windows, `lua/plugins/codex.lua` installs the local `lua/config/codex-cwd.lua` resolver before setup. This prevents upstream's POSIX-only path handling from prefixing drive-letter paths with the current directory, and also covers file/selection context paths.
+  - Upstream officially supports macOS/Linux; this compatibility fix addresses Windows path resolution, not full Windows support.
+
 - render-markdown.nvim
   - Used for in-editor Markdown rendering and display polish. Check upstream docs for parser and font requirements.
 
@@ -133,5 +139,4 @@ This README documents the Neovim/LazyVim portion of that setup and adapts the ed
 
 If you want, I can also:
 - Add more documentation about keymaps or customize options.
-
 
